@@ -16,125 +16,121 @@
 #include  "llvm/Passes/PassPlugin.h"
 
 
+
 using namespace llvm;
 
 namespace {
-struct CallGraphPass : public ModulePass {
-  static char ID;
+
+struct CallGraphPass :  public PassInfoMixin<CallGraphPass> {
 
   Graph *callgraph=new Graph();
   PointerAnalysis *pointerAnalysis=new PointerAnalysis();
 
-  CallGraphPass() : ModulePass(ID) {}
+  PreservedAnalyses run(llvm::Module &M, ModuleAnalysisManager &AM) {
 
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.setPreservesAll();
-  }
+        for (Function &F : M) {
 
-  virtual bool runOnModule(llvm::Module &M) {
+            callgraph->addNode(&F);
 
-    for (Function &Func : M) {
+            for (BasicBlock &BB : F) {
+                for (Instruction &I : BB) {
 
-      callgraph->addNode(&Func);
+                    if (auto *storeInst =dyn_cast<StoreInst>(&I))
+                    {
 
-      for (BasicBlock &BB : Func) {
-        for (Instruction &Ins : BB) {
+                      Value *to = storeInst->getValueOperand()->stripPointerCasts();
+                      Value *from = storeInst->getPointerOperand()->stripPointerCasts();
 
+                      // Add Points-To
+                      pointerAnalysis->pointsTo(from, to);
+                      // Add to Worklist
+                      pointerAnalysis->addToWorkList(&I);
+                      continue;
 
-          if (isa<StoreInst>(Ins)) {
-            StoreInst *storeInst = dyn_cast<StoreInst>(&Ins);
+                    }
 
-            Value *to = storeInst->getValueOperand()->stripPointerCasts();
+                    if (auto *loadInst =dyn_cast<LoadInst>(&I))
+                    {
 
-            Value *from = storeInst->getPointerOperand()->stripPointerCasts();
-            // Add Points-To
-            pointerAnalysis->pointsTo(from, to);
-            // Add to Worklist
-            pointerAnalysis->addToWorkList(&Ins);
-            continue;
-          }
-          if (isa<LoadInst>(Ins)) {
-            LoadInst *loadInst = dyn_cast<LoadInst>(&Ins);
+                      Value *to = loadInst->getPointerOperand()->stripPointerCasts();
+                      Value *from = dyn_cast<Value>(loadInst);
 
-            Value *to = loadInst->getPointerOperand()->stripPointerCasts();
-            Value *from = dyn_cast<Value>(loadInst);
+                      // Add Points-To
+                      pointerAnalysis->pointsTo(from, to);
+                      // Add to Worklist
+                      pointerAnalysis->addToWorkList(&I);
+                      continue;
 
-            // Add Points-To
-            pointerAnalysis->pointsTo(from, to);
-            // Add to Worklist
-            pointerAnalysis->addToWorkList(&Ins);
-            continue;
-          }
+                    }
 
-          else if (isa<CallBase>(Ins)) {
-            CallBase *callBase = dyn_cast<CallBase>(&Ins);
+                    else if (auto *callBase = dyn_cast<CallBase>(&I))
+                    {
+                          if (!callBase) {
+                            // Maybe Indirect Call
+                            pointerAnalysis->addToWorkList(&I);
+                            continue;
+                          }
 
+                          // errs()<<*callInst;
+                          if (callBase->isIndirectCall()) {
 
+                            pointerAnalysis->addToWorkList(&I);
+                            continue;
+                          }
+                          // Direct Call
+                          Function *calleeFunc = callBase->getCalledFunction();
+                          if (!calleeFunc || calleeFunc->isIntrinsic()) continue;
 
-            if (!callBase) {
-              // Maybe Indirect Call
-              pointerAnalysis->addToWorkList(&Ins);
-              continue;
+                          callgraph->addNode(calleeFunc);
+                          callgraph->addEdge(&F, calleeFunc);
+
+                          // Connect formal pointer parameters to actual call arguments.
+                          if (!calleeFunc->isDeclaration())
+                          {
+                            unsigned argIndex = 0;
+                            for (Argument &parameter : calleeFunc->args())
+                            {
+                              Value *argument = callBase->getArgOperand(argIndex++);
+
+                              if (!parameter.getType()->isPointerTy() ||
+                                  !argument->getType()->isPointerTy())
+                                continue;
+
+                              pointerAnalysis->pointsTo(
+                                  &parameter, argument->stripPointerCasts());
+                            }
+                          }
+
+                    }
+
+                }
             }
-
-            // errs()<<*callInst;
-            if (callBase->isIndirectCall()) {
-
-              pointerAnalysis->addToWorkList(&Ins);
-              continue;
-            }
-            // Direct Call
-            Function *calleeFunc = callBase->getCalledFunction();
-             if (!calleeFunc || calleeFunc->isIntrinsic()) continue;
-
-             callgraph->addNode(calleeFunc);
-
-             callgraph->addEdge(&Func, calleeFunc);
-
-             // Connect formal pointer parameters to actual call arguments.
-             if (!calleeFunc->isDeclaration()) {
-               unsigned argIndex = 0;
-               for (Argument &parameter : calleeFunc->args()) {
-                 Value *argument = callBase->getArgOperand(argIndex++);
-                 if (!parameter.getType()->isPointerTy() ||
-                     !argument->getType()->isPointerTy())
-                   continue;
-
-                 pointerAnalysis->pointsTo(
-                     &parameter, argument->stripPointerCasts());
-               }
-             }
-          }
-
         }
-      }
-    }
-
-    return true;
-  }
-
-  virtual bool doFinalization(llvm::Module &M) {
 
     pointerAnalysis->printPointToSet();
-    pointerAnalysis->processWorkList(callgraph); // resolve Pointers and modify the callgraph
-
+    pointerAnalysis->processWorkList(callgraph);  
     callgraph->printGraph();
 
-    //Clean up
-    delete callgraph;
-    delete pointerAnalysis;
-    return true;
+    return PreservedAnalyses::all();
+
   }
+
 };
+
 } // namespace
 
-char CallGraphPass::ID = 0;
 
-static RegisterPass<CallGraphPass> X("callgraph", "CallGraph Generation");
-
-static void registerPass(const PassManagerBuilder &,
-                         legacy::PassManagerBase &PM) {
-  PM.add(new CallGraphPass());
+extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo
+llvmGetPassPluginInfo() {
+    return {
+        .APIVersion = LLVM_PLUGIN_API_VERSION,
+        .PluginName = "Replace Call pass",
+        .PluginVersion = "v0.1",
+        .RegisterPassBuilderCallbacks = [](PassBuilder &PB) {
+            PB.registerPipelineStartEPCallback(
+                [](ModulePassManager &MPM, OptimizationLevel Level) {
+                    MPM.addPass(CallGraphPass());
+                });
+        }
+    };
 }
-static RegisterStandardPasses
-    RegisterMyPass(PassManagerBuilder::EP_EarlyAsPossible, registerPass);
