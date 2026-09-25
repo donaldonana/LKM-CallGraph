@@ -1,0 +1,55 @@
+# Build artifacts
+build/
+bin/
+obj/
+out/
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+
+# CMake / compiler generated
+CMakeCache.txt
+CMakeFiles/
+cmake-build-*/
+Makefile
+Makefile.*
+compile_commands.json
+
+# LLVM / analysis outputs
+*.text
+*.dot
+*.gv
+*.png
+*.svg
+*.pdf
+*.ps
+*.log
+
+# Project generated outputs
+graph.text
+graph.dot
+graph.gv
+pointto.text
+*.dot
+*.text
+
+# Editor / local environment
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Python cache (if relevant)
+__pycache__/
+*.pyc
+
+# Backup / temporary files
+*.bak
+*.orig
+*.tmp
