@@ -17,6 +17,7 @@ CMakeFiles/
 cmake-build-*/
 Makefile
 Makefile.*
+!/test/hello_lkm/Makefile
 compile_commands.json
 
 # LLVM / analysis outputs

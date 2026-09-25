@@ -108,7 +108,7 @@ struct CallGraphPass :  public PassInfoMixin<CallGraphPass> {
         }
 
     pointerAnalysis->printPointToSet();
-    pointerAnalysis->processWorkList(callgraph);  
+    pointerAnalysis->processWorkList(callgraph);
     callgraph->printGraph();
 
     return PreservedAnalyses::all();
