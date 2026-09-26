@@ -54,3 +54,7 @@ __pycache__/
 *.bak
 *.orig
 *.tmp
+
+# Private local notes
+/sync.md
+/temp.ll
