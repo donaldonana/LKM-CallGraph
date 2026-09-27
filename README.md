@@ -69,3 +69,33 @@ Run the example test with:
 ```bash
 ./run.sh ./test/hello.c
 ```
+
+## Analyze combined LKM and kernel IR
+
+After linking the LKM and kernel bitcode, run the plugin with LLVM 14:
+
+```bash
+opt-14 -load-pass-plugin=/absolute/path/to/build/src/CallGraph/libCallGraph.so \
+  -passes=lkm-callgraph -disable-output /absolute/path/to/combined.bc
+```
+
+Run this command in a dedicated output directory: the pass writes `graph.text`,
+`graph.dot`, and `pointto.text` in the current directory.
+
+By default, the text and DOT graphs include only functions reachable through
+resolved call edges from `init_module` and `cleanup_module`. Their aliases are
+resolved to the actual LKM functions. Reachable external declarations and entry
+points with no calls are retained. If neither entry point has a definition, the
+pass reports this and emits the full graph. Use `-passes=lkm-callgraph-full` to
+request the full graph explicitly.
+
+This filters the output after analysis; it does not reduce IR scanning or filter
+`pointto.text`. Callbacks invoked by the kernel without a resolved call path from
+these roots are not included. The graph describes statically reachable calls,
+not proof that a function executes at runtime.
+
+Validate filtering, recursion, aliases, external leaves, and full-graph fallback:
+
+```bash
+python3 test/reachability.py
+```

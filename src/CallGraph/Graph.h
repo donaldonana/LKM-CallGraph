@@ -7,6 +7,8 @@
 #include "llvm/IR/Function.h"
 #include <fstream>
 #include <iostream>
+#include <set>
+#include <vector>
 
 using namespace std;
 using namespace clang;
@@ -25,6 +27,6 @@ public:
   void addNode(llvm::Function *func);
   llvm::Function *getFunctionByNodeValue(Value *node);
   map<Value *, llvm::Function *> getValueToFuncMap();
-  void printGraph();
+  void printGraph(const vector<llvm::Function *> &roots = {});
   void displayBanner();
 };

@@ -4,6 +4,7 @@
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/GlobalAlias.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
@@ -22,6 +23,9 @@ using namespace llvm;
 namespace {
 
 struct CallGraphPass :  public PassInfoMixin<CallGraphPass> {
+
+  bool FullGraph;
+  explicit CallGraphPass(bool FullGraph = false) : FullGraph(FullGraph) {}
 
   Graph *callgraph=new Graph();
   PointerAnalysis *pointerAnalysis=new PointerAnalysis();
@@ -109,7 +113,22 @@ struct CallGraphPass :  public PassInfoMixin<CallGraphPass> {
 
     pointerAnalysis->printPointToSet();
     pointerAnalysis->processWorkList(callgraph);
-    callgraph->printGraph();
+    std::vector<Function *> roots;
+    if (!FullGraph) {
+      // module_init/module_exit typically produce aliases to local functions.
+      for (const char *name : {"init_module", "cleanup_module"}) {
+        if (GlobalValue *entry = M.getNamedValue(name)) {
+          if (auto *alias = dyn_cast<GlobalAlias>(entry))
+            entry = alias->getAliaseeObject();
+          if (auto *function = dyn_cast_or_null<Function>(entry))
+            if (!function->isDeclaration())
+              roots.push_back(function);
+        }
+      }
+      if (roots.empty())
+        errs() << "lkm-callgraph: no LKM entry point found; emitting full graph\n";
+    }
+    callgraph->printGraph(roots);
 
     return PreservedAnalyses::all();
 
@@ -127,6 +146,17 @@ llvmGetPassPluginInfo() {
         .PluginName = "Replace Call pass",
         .PluginVersion = "v0.1",
         .RegisterPassBuilderCallbacks = [](PassBuilder &PB) {
+            // Allow explicit execution with opt -passes=lkm-callgraph.
+            PB.registerPipelineParsingCallback(
+                [](StringRef Name, ModulePassManager &MPM,
+                   ArrayRef<PassBuilder::PipelineElement>) {
+                    if (Name != "lkm-callgraph" && Name != "lkm-callgraph-full")
+                        return false;
+                    MPM.addPass(CallGraphPass(Name == "lkm-callgraph-full"));
+                    return true;
+                });
+
+            // Keep automatic execution when loaded by Clang.
             PB.registerPipelineStartEPCallback(
                 [](ModulePassManager &MPM, OptimizationLevel Level) {
                     MPM.addPass(CallGraphPass());

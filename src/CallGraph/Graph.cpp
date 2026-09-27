@@ -24,7 +24,20 @@ llvm::Function *Graph::getFunctionByNodeValue(Value *value) {
   return idToFuncMap[value];
 }
 
-void Graph::printGraph() {
+void Graph::printGraph(const vector<llvm::Function *> &roots) {
+
+  // Follow outgoing edges only, after indirect-call resolution has finished.
+  set<Value *> reachable;
+  vector<Value *> pending(roots.begin(), roots.end());
+  while (!pending.empty()) {
+    Value *node = pending.back();
+    pending.pop_back();
+    if (!reachable.insert(node).second)
+      continue;
+    auto edges = adjMap.find(node);
+    if (edges != adjMap.end())
+      pending.insert(pending.end(), edges->second.begin(), edges->second.end());
+  }
 
   std::string graphFileName = "graph.text";
   std::string graphFileNameDot = "graph.dot";
@@ -34,7 +47,21 @@ void Graph::printGraph() {
   graphDot << "digraph G {"
            << "\n";
 
+  // Keep reachable leaves and entry points even if they have no calls.
+  for (Value *node : reachable) {
+    auto edges = adjMap.find(node);
+    if (edges == adjMap.end() || edges->second.empty()) {
+      const auto name = getFunctionByNodeValue(node)->getName().str();
+      graphFile << "[" << name << "]:\n";
+      graphDot << "\"" << name << "\";\n";
+    }
+  }
+
   for (auto const &node : adjMap) {
+    if (!roots.empty() && !reachable.count(node.first))
+      continue;
+    if (!roots.empty() && node.second.empty())
+      continue; // Already emitted as a leaf above.
     graphFile << "[" << getFunctionByNodeValue(node.first)->getName().str()
               << "]:";
 
@@ -73,6 +100,6 @@ map<Value *, llvm::Function *> Graph::getValueToFuncMap(){
 
 
 void Graph::displayBanner(){
-    errs()<<"Graphical Graph: xdot graph.dot\nText Format: gedit graph.txt\n";
+    errs()<<"Graphical Graph: xdot graph.dot\nText Format: gedit graph.text\n";
 
 }

@@ -58,3 +58,6 @@ __pycache__/
 # Private local notes
 /sync.md
 /temp.ll
+
+# Local Linux kernel source
+/linux/
