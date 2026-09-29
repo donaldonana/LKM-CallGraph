@@ -1,1 +1,0 @@
-cmd_/home/donald/code/callGraph/test/module-list/module_list.mod := { echo  /home/donald/code/callGraph/test/module-list/module_list.o;  echo; } > /home/donald/code/callGraph/test/module-list/module_list.mod

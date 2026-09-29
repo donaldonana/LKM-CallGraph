@@ -1,1 +1,0 @@
-cmd_/home/donald/code/callGraph/test/module-list/module_list.ko := ld -r -m elf_x86_64 -z noexecstack --build-id=sha1  -T scripts/module.lds -o /home/donald/code/callGraph/test/module-list/module_list.ko /home/donald/code/callGraph/test/module-list/module_list.o /home/donald/code/callGraph/test/module-list/module_list.mod.o;  true

@@ -17,7 +17,7 @@ CMakeFiles/
 cmake-build-*/
 Makefile
 Makefile.*
-!/test/hello_lkm/Makefile
+!/test/**/Makefile
 compile_commands.json
 
 # LLVM / analysis outputs
@@ -61,3 +61,17 @@ __pycache__/
 
 # Local Linux kernel source
 /linux/
+
+# Generated analysis results
+/analysis/
+/test/**/*.ll
+/test/**/*.bc
+
+# Kernel module build artifacts
+*.ko
+*.mod
+*.mod.c
+.*.cmd
+Module.symvers
+modules.order
+.tmp_versions/

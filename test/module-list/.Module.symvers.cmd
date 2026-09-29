@@ -1,1 +1,0 @@
-cmd_/home/donald/code/callGraph/test/module-list/Module.symvers := sed 's/\.ko$$/\.o/' /home/donald/code/callGraph/test/module-list/modules.order | scripts/mod/modpost -m -a  -o /home/donald/code/callGraph/test/module-list/Module.symvers -e -i Module.symvers   -T -
