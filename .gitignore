@@ -75,3 +75,7 @@ __pycache__/
 Module.symvers
 modules.order
 .tmp_versions/
+
+# Keep documentation images under version control
+!/images/
+!/images/**
