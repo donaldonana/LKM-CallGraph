@@ -5,10 +5,7 @@
 
 #include "Graph.h"
 
-void Graph::addEdge(Value *src, Value *dest) {
-  if (!isEdgeExist(src, dest))
-    adjMap[src].push_back(dest);
-}
+void Graph::addEdge(Value *src, Value *dest) { adjMap[src].insert(dest); }
 
 bool Graph::isEdgeExist(Value *src, Value *desc) {
   for (auto e : adjMap[src]) {
@@ -20,9 +17,7 @@ bool Graph::isEdgeExist(Value *src, Value *desc) {
 
 void Graph::addNode(llvm::Function *func) { idToFuncMap[func] = func; }
 
-llvm::Function *Graph::getFunctionByNodeValue(Value *value) {
-  return idToFuncMap[value];
-}
+llvm::Function *Graph::getFunctionByNodeValue(Value *v) { return cast<Function>(v); }
 
 void Graph::printGraph(const vector<llvm::Function *> &roots) {
 
@@ -94,9 +89,9 @@ void Graph::printGraph(const vector<llvm::Function *> &roots) {
   displayBanner();
 }
 
-map<Value *, llvm::Function *> Graph::getValueToFuncMap(){
-    return idToFuncMap;
-}
+// map<Value *, llvm::Function *> Graph::getValueToFuncMap(){
+//     return idToFuncMap;
+// }
 
 
 void Graph::displayBanner(){

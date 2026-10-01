@@ -4,6 +4,7 @@
 */
 
 #include "PointerAnalysis.h"
+#include "llvm/ADT/DenseSet.h"
 
 void PointerAnalysis::addToWorkList(llvm::Instruction *inst) {
 
@@ -35,63 +36,31 @@ void PointerAnalysis::printPointToSet() {
 
   file.close();
 }
-
-set<Function *> PointerAnalysis::getPointsToFunctions(
-    Value *val,
-    map<Value *, Function *> idToFunctionMap) {
-
+set<Function *> PointerAnalysis::getPointsToFunctions(Value *val) {
   set<Function *> functions;
-  set<Value *> visited;
-
-  resolvePointsTo(val, idToFunctionMap, functions, visited);
+  resolvePointsTo(val, functions);
   return functions;
 }
 
-void PointerAnalysis::resolvePointsTo(
-    Value *val,
-    const map<Value *, Function *> &idToFunctionMap,
-    set<Function *> &functions,
-    set<Value *> &visited) {
-
-  if (!visited.insert(val).second)
-    return; // Already explored this value.
-
-  auto functionIt = idToFunctionMap.find(val);
-  /*
-   * Value is a function node in the call graph, add it to the set of functions and return.
-  */
-  if (functionIt != idToFunctionMap.end()) {
-    functions.insert(functionIt->second);
-    return;
+void PointerAnalysis::resolvePointsTo(Value *start, set<Function *> &out) {
+  SmallVector<Value *, 64> stack{start};
+  DenseSet<Value *> visited;
+  while (!stack.empty()) {
+    Value *v = stack.pop_back_val();
+    if (!visited.insert(v).second) continue;
+    if (auto *f = dyn_cast<Function>(v)) { out.insert(f); continue; }
+    auto it = pointToSet.find(v);
+    if (it == pointToSet.end()) continue;
+    for (Value *n : it->second) stack.push_back(n);
   }
-
-  auto pointsToIt = pointToSet.find(val);
-  if (pointsToIt == pointToSet.end())
-    return;
-
-  for (Value *next : pointsToIt->second)
-    resolvePointsTo(next, idToFunctionMap, functions, visited);
 }
 
-
 void PointerAnalysis::processWorkList(Graph *callgraph) {
-  /* */
-  while (!workList.empty()) {
-    llvm::Instruction *inst = workList.front();
-
-    if (isa<CallInst>(inst)) {
-
-      CallInst *callInst = dyn_cast<CallInst>(inst);
-
-      set<Function *> funcSet = getPointsToFunctions(
-          callInst->getCalledOperand()->stripPointerCasts(),
-          callgraph->getValueToFuncMap());
-
-      for (auto f : funcSet) {
-        callgraph->addEdge(callInst->getFunction(), f);
-      }
-    }
-
-    workList.pop_front();
+  for (Instruction *inst : workList) {
+    auto *cb = dyn_cast<CallBase>(inst);
+    if (!cb) continue;
+    for (Function *f : getPointsToFunctions(cb->getCalledOperand()->stripPointerCasts()))
+      callgraph->addEdge(cb->getFunction(), f);
   }
+  workList.clear();
 }

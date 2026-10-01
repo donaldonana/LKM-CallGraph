@@ -27,22 +27,29 @@ The project supports direct calls and aims to handle more challenging patterns s
 The analysis targets a specific kernel version, configuration, and architecture. It runs without loading or executing the LKM
 
 <p align="center">
-  <img src="images/callgraph.png" alt="Call graph visualization" style="width:250px;"/>
+  <img src="images/callgraph.png" alt="Call graph visualization" style="width:260px;"/>
 </p>
 
-1. Generate the LKM IR: compile the module source into LLVM IR using Kbuild’s headers and compilation flags.
-2. Generate the relevant kernel IR: compile selected kernel files containing the function implementations needed for deeper analysis.
-3. Combine the IR: use llvm-link to make those kernel function bodies available alongside the LKM.
-4. Build and filter the graph: run the pass, then retain functions reachable through resolved calls from the LKM’s initialization and exit entry points.
-Calls to functions whose bodies are missing remain visible, but their internal calls cannot be explored.
+### 1. Generate the LKM IR
+ #ToDo
+
+### 2. Generate the relevant kernel IR
+ #ToDo
+
+### 3. Combine the IR
+#ToDo
+
+### 4. Build and filter the graph
+#ToDo
 
 ## Prerequisites
 
 The actual example uses:
 
-- Linux **v5.15** sources in the root of the project.
-- LLVM and Clang **14**, including LLVM development files.
-- CMake **4.3 or newer**, as required by the current CMake files.
+- Linux sources in the root of the project.
+
+- Installing LLVM and Clang **24.0 or newer**, including LLVM development files.
+- Installing CMake **4.3 or newer**, as required by the current CMake files.
 - An **x86-64** target platform.
 - Kernel build dependencies, including Make, a host C compiler, Flex, Bison, and ELF/OpenSSL development headers.
 - Graphviz, optionally, to render the graph.
@@ -50,11 +57,11 @@ The actual example uses:
 Check the tools available in your `PATH`:
 
 ```bash
-clang-14 --version
-llvm-config-14 --version
-llvm-link-14 --version
-opt-14 --version
+clang --version
+opt   --version
 cmake --version
+
+type -a clang opt llvm-link ld.lld
 ```
 
 
@@ -70,8 +77,10 @@ cd LKM-CallGraph
 From the project root:
 
 ```bash
-cmake -S . -B build -DLLVM_DIR="$(llvm-config-14 --cmakedir)"
-cmake --build build --target CallGraph
+PROJECT_DIR="$PWD"
+
+cmake -S $PROJECT_DIR -B build
+cmake --build "$PROJECT_DIR/build"
 ```
 
 The pass plugin is generated at:
@@ -80,91 +89,76 @@ The pass plugin is generated at:
 build/src/CallGraph/libCallGraph.so
 ```
 
-## kernel config
-
-Define absolute paths from the project root:
-
-```bash
-PROJECT_DIR="$PWD"
-KERNEL_SRC="$PROJECT_DIR/linux"
-KERNEL_BUILD="$PROJECT_DIR/analysis/kernel-build"
-LKM_DIR="$PROJECT_DIR/test/call-chain"
-
-mkdir -p "$KERNEL_BUILD"
-```
-
-Create a default configuration and prepare the kernel build directory:
-
-```bash
-make -C "$KERNEL_SRC" O="$KERNEL_BUILD" \
-  ARCH=x86 LLVM=-14 defconfig
-
-make -C "$KERNEL_SRC" O="$KERNEL_BUILD" \
-  ARCH=x86 LLVM=-14 modules_prepare
-```
 
 
 ## Run the test
 
-#### 1. Generate the kernel IR
+With the kernel build already prepared and `artefact/vmlinux.ll` available, run
+from the project root:
 
 ```bash
-make -C "$KERNEL_SRC" O="$KERNEL_BUILD" \
-  ARCH=x86 LLVM=-14 \
-  KCFLAGS="-Xclang -disable-llvm-passes" \
-  kernel/time/timer.ll
+./run.sh
 ```
 
+The script builds the analysis plugin, generate the IR of each LKM in the
+`test/`  folder, links each LKM IR with the existing kernel IR, and runs `lkm-callgraph`. To run one test, use `./run.sh module-list`.
 
-Kbuild uses Clang's `-emit-llvm -S` options to generate textual IR. The additional flag disables the usual LLVM optimization passes.
+## Run one test manually
+
+#### 1. Generate the kernel IR
+
+#TODO
 
 #### 2. Generate the LKM IR
 
 ```bash
-make -C "$KERNEL_SRC" O="$KERNEL_BUILD" \
-  ARCH=x86 LLVM=-14 \
+make -C "$KERNEL_SRC"  \
+  ARCH=x86 LLVM=1 \
   M="$LKM_DIR" \
   CFLAGS_call_chain.o= \
   KCFLAGS="-Xclang -disable-llvm-passes" \
-  call_chain.ll
+  module_list.ll
+
+mv "$LKM_DIR/module_list.ll" "$ARTEFACT"
 ```
 
 
 #### 3. Combine the IR
 
 ```bash
-llvm-link-14 \
-  "$LKM_DIR/call_chain.ll" \
-  "$KERNEL_BUILD/kernel/time/timer.ll" \
-  -o "$PROJECT_DIR/analysis/combined.bc"
+cd "$ARTEFACT"
+
+llvm-dis "vmlinux.bc" -o "vmlinux.ll"
+
+llvm-link \
+  "module_list.ll" \
+  "vmlinux.ll" \
+  -o "merge.bc"
 ```
 
 The `.bc` file contains LLVM IR in binary form.
 
+
 #### 4. Run the analysis
 
 ```bash
-mkdir -p "$PROJECT_DIR/analysis/result"
-cd "$PROJECT_DIR/analysis/result"
+cd "$ARTEFACT"
 
-opt-14 \
+opt \
   -load-pass-plugin="$PROJECT_DIR/build/src/CallGraph/libCallGraph.so" \
   -passes=lkm-callgraph \
   -disable-output \
-  "$PROJECT_DIR/analysis/combined.bc"
+  -time-passes \
+  "$ARTEFACT/merge.bc"
 ```
 
 ## Inspect the results
 
 The pass writes these files in its working directory:
 
-   - `graph.text`:   Call relationships in `[caller]:[callee1],[callee2]` format. |
- - `graph.dot` :  The call graph in Graphviz DOT format. |
-  - `pointto.text`:   Pointer-analysis diagnostics, without reachability filtering. |
+   - `graph.text`:   Call relationships in `[caller]:[callee1],[callee2]` format.
 
-Reachable functions with no recorded callees appear as `[function]:`. This includes external declarations whose bodies are unavailable. To render the graph with Graphviz:
+ - `graph.dot` :  The call graph in Graphviz DOT format.
+  - `pointto.text`:   Pointer-analysis diagnostics, without reachability filtering.
 
-```bash
-dot -Tsvg graph.dot -o graph.svg
-
- 
+Reachable functions with no recorded callees appear as `[function]:`.

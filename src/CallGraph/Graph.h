@@ -19,7 +19,7 @@ class Graph {
 private:
   map<Value *, llvm::Function *> idToFuncMap;
   map<llvm::Function *, Value *> funcToIdMap;
-  map<Value *, vector<Value *>> adjMap;
+  map<Value *, llvm::SetVector<Value *>> adjMap; 
   bool isEdgeExist(Value *src, Value *desc);
 
 public:

@@ -6,16 +6,14 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalAlias.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
-#include "llvm/Pass.h"
+#include "llvm/IR/PassManager.h"
+#include "llvm/Passes/OptimizationLevel.h"
+#include "llvm/Passes/PassBuilder.h"
+#include "llvm/Plugins/PassPlugin.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Transforms/IPO/PassManagerBuilder.h"
-
-#include  "llvm/Passes/PassBuilder.h"
-#include  "llvm/Passes/PassPlugin.h"
-
+#include <chrono>
 
 
 using namespace llvm;
@@ -30,7 +28,17 @@ struct CallGraphPass :  public PassInfoMixin<CallGraphPass> {
   Graph *callgraph=new Graph();
   PointerAnalysis *pointerAnalysis=new PointerAnalysis();
 
+
+
+
   PreservedAnalyses run(llvm::Module &M, ModuleAnalysisManager &AM) {
+
+    auto t0 = std::chrono::steady_clock::now();
+  auto lap = [&](const char *what) {
+    auto t1 = std::chrono::steady_clock::now();
+    errs() << what << ": " << std::chrono::duration<double>(t1 - t0).count() << " s\n";
+    t0 = t1;
+  };
 
         for (Function &F : M) {
 
@@ -41,7 +49,6 @@ struct CallGraphPass :  public PassInfoMixin<CallGraphPass> {
 
                     if (auto *storeInst =dyn_cast<StoreInst>(&I))
                     {
-
                       Value *to = storeInst->getValueOperand()->stripPointerCasts();
                       Value *from = storeInst->getPointerOperand()->stripPointerCasts();
 
@@ -50,12 +57,10 @@ struct CallGraphPass :  public PassInfoMixin<CallGraphPass> {
                       // Add to Worklist
                       pointerAnalysis->addToWorkList(&I);
                       continue;
-
                     }
 
                     if (auto *loadInst =dyn_cast<LoadInst>(&I))
                     {
-
                       Value *to = loadInst->getPointerOperand()->stripPointerCasts();
                       Value *from = dyn_cast<Value>(loadInst);
 
@@ -64,56 +69,58 @@ struct CallGraphPass :  public PassInfoMixin<CallGraphPass> {
                       // Add to Worklist
                       pointerAnalysis->addToWorkList(&I);
                       continue;
-
                     }
 
                     else if (auto *callBase = dyn_cast<CallBase>(&I))
                     {
-                          if (!callBase) {
-                            // Maybe Indirect Call
-                            pointerAnalysis->addToWorkList(&I);
+                      if (!callBase) {
+                        // Maybe Indirect Call
+                        pointerAnalysis->addToWorkList(&I);
+                        continue;
+                      }
+
+                      // errs()<<*callInst;
+                      if (callBase->isIndirectCall()) {
+
+                        pointerAnalysis->addToWorkList(&I);
+                        continue;
+                      }
+                      // Direct Call
+                      Function *calleeFunc = callBase->getCalledFunction();
+                      if (!calleeFunc || calleeFunc->isIntrinsic()) continue;
+
+                      callgraph->addNode(calleeFunc);
+                      callgraph->addEdge(&F, calleeFunc);
+
+                      // Connect formal pointer parameters to actual call arguments.
+                      if (!calleeFunc->isDeclaration())
+                      {
+                        unsigned argIndex = 0;
+                        for (Argument &parameter : calleeFunc->args())
+                        {
+                          Value *argument = callBase->getArgOperand(argIndex++);
+
+                          if (!parameter.getType()->isPointerTy() ||
+                              !argument->getType()->isPointerTy())
                             continue;
-                          }
 
-                          // errs()<<*callInst;
-                          if (callBase->isIndirectCall()) {
-
-                            pointerAnalysis->addToWorkList(&I);
-                            continue;
-                          }
-                          // Direct Call
-                          Function *calleeFunc = callBase->getCalledFunction();
-                          if (!calleeFunc || calleeFunc->isIntrinsic()) continue;
-
-                          callgraph->addNode(calleeFunc);
-                          callgraph->addEdge(&F, calleeFunc);
-
-                          // Connect formal pointer parameters to actual call arguments.
-                          if (!calleeFunc->isDeclaration())
-                          {
-                            unsigned argIndex = 0;
-                            for (Argument &parameter : calleeFunc->args())
-                            {
-                              Value *argument = callBase->getArgOperand(argIndex++);
-
-                              if (!parameter.getType()->isPointerTy() ||
-                                  !argument->getType()->isPointerTy())
-                                continue;
-
-                              pointerAnalysis->pointsTo(
-                                  &parameter, argument->stripPointerCasts());
-                            }
-                          }
+                          pointerAnalysis->pointsTo(
+                              &parameter, argument->stripPointerCasts());
+                        }
+                      }
 
                     }
 
                 }
             }
         }
+        lap("collect");
 
-    pointerAnalysis->printPointToSet();
+    // pointerAnalysis->printPointToSet();
     pointerAnalysis->processWorkList(callgraph);
+    lap("solve");
     std::vector<Function *> roots;
+
     if (!FullGraph) {
       // module_init/module_exit typically produce aliases to local functions.
       for (const char *name : {"init_module", "cleanup_module"}) {
@@ -125,10 +132,12 @@ struct CallGraphPass :  public PassInfoMixin<CallGraphPass> {
               roots.push_back(function);
         }
       }
+
       if (roots.empty())
         errs() << "lkm-callgraph: no LKM entry point found; emitting full graph\n";
     }
     callgraph->printGraph(roots);
+    lap("print");
 
     return PreservedAnalyses::all();
 
