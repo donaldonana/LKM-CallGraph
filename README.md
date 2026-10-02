@@ -78,7 +78,6 @@ From the project root:
 
 ```bash
 PROJECT_DIR="$PWD"
-ARTEFACT="artefact"
 
 cmake -S $PROJECT_DIR -B build
 cmake --build "$PROJECT_DIR/build"

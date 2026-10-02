@@ -28,4 +28,5 @@ MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("Hello-world loadable kernel module");
 
 
-// CHECK-DAG:  hello_lkm_init->fr;
+// CHECK-DAG:  hello_lkm_init->foo;
+// CHECK-DAG:  hello_lkm_init->_printk;

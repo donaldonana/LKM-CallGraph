@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 4.3)
+cmake_minimum_required(VERSION 4.2)
 project(CallGraph LANGUAGES C CXX)
 
 find_package(LLVM REQUIRED CONFIG)

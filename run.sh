@@ -8,14 +8,14 @@ KERNEL_IR=${KERNEL_IR:-"$ARTEFACT/vmlinux.ll"}
 PLUGIN="$PROJECT_DIR/build/src/CallGraph/libCallGraph.so"
 FILECHECK=${FILECHECK:-FileCheck}
 
-die() {
+die()
+{
     printf 'Error: %s\n' "$*" >&2
     exit 1
 }
 
 shopt -s nullglob
 tests=()
-
 if (( $# )); then
     for name in "$@"; do
         [[ $name != */* && $name != .* &&
@@ -28,7 +28,6 @@ else
         [[ -f "$dir/Makefile" ]] && tests+=("${dir%/}")
     done
 fi
-
 (( ${#tests[@]} )) || die 'No tests found'
 
 KERNEL_SRC=$(realpath "$KERNEL_SRC")
@@ -44,20 +43,21 @@ if [[ -n ${KERNEL_BUILD:-} ]]; then
     kmake+=("O=$(realpath "$KERNEL_BUILD")")
 fi
 
-run_test() {
+
+# Generate the LKM IR .
+IRgenerate()
+{
     local dir=$1 output=$2 source stem
-    local checked=0 failed=0
-    local -a targets=() flags=() inputs=()
+    local -a targets=() flags=()
 
     for source in "$dir"/*.c; do
         [[ $source == *.mod.c ]] && continue
         stem=$(basename "$source" .c)
         flags+=("CFLAGS_$stem.o=")
         targets+=("$stem.ll")
-        inputs+=("$output/$stem.ll")
     done
 
-    (( ${#inputs[@]} )) || die "No C sources in $dir"
+    (( ${#targets[@]} )) || die "No C sources in $dir"
 
     "${kmake[@]}" "M=$dir" "${flags[@]}" \
         'KCFLAGS=-Xclang -disable-llvm-passes' "${targets[@]}"
@@ -65,8 +65,29 @@ run_test() {
     for source in "${targets[@]}"; do
         cp -- "$dir/$source" "$output/$source"
     done
+}
+
+
+# Link the LKM IR with the kernel IR into a single bitcode.
+IRlink()
+{
+    local dir=$1 output=$2 source stem
+    local -a inputs=()
+
+    for source in "$dir"/*.c; do
+        [[ $source == *.mod.c ]] && continue
+        stem=$(basename "$source" .c)
+        inputs+=("$output/$stem.ll")
+    done
 
     llvm-link "${inputs[@]}" "$KERNEL_IR" -o "$output/merge.bc"
+}
+
+# After running the plugin, t
+# check the generated graph agains the CHECK directives in the source files.
+Test() {
+    local dir=$1 output=$2 source
+    local checked=0 failed=0
 
     cd "$output"
     opt "-load-pass-plugin=$PLUGIN" -passes=lkm-callgraph \
@@ -104,21 +125,34 @@ run_test() {
     fi
 }
 
+Run()
+{
+    local dir=$1 output=$2
+
+    IRgenerate "$dir" "$output"
+    IRlink "$dir" "$output"
+    Test "$dir" "$output"
+}
+
+
 failures=0
 for dir in "${tests[@]}"; do
+
     name=$(basename "$dir")
     output="$ARTEFACT/$name"
     mkdir -p "$output"
+
     printf 'Running %s...\n' "$name"
 
     set +e
-    (set -e; run_test "$dir" "$output") > "$output/run.log" 2>&1
+    (set -e; Run "$dir" "$output") > "$output/run.log" 2>&1
     status=$?
     set -e
 
     if (( status != 0 )); then
-        printf 'FAIL: build, analysis, or FileCheck failed (exit %s); see run.log\n' \
-            "$status" > "$output/status.txt"
+        printf 'FAIL: build, analysis, or FileCheck failed - see run.log\n' \
+            > "$output/status.txt"
+
         failures=$((failures + 1))
     fi
 
