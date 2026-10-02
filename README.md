@@ -31,16 +31,16 @@ The analysis targets a specific kernel version, configuration, and architecture.
 </p>
 
 ### 1. Generate the LKM IR
- #ToDo
+ #ToDo -- i will explain it. First assume the linux kernel IR in artefact folder
 
 ### 2. Generate the relevant kernel IR
- #ToDo
+ #ToDo -- i will explain it
 
 ### 3. Combine the IR
-#ToDo
+#ToDo -- i will explain it
 
 ### 4. Build and filter the graph
-#ToDo
+#ToDo-- i will explain it
 
 ## Prerequisites
 
@@ -78,6 +78,7 @@ From the project root:
 
 ```bash
 PROJECT_DIR="$PWD"
+ARTEFACT="artefact"
 
 cmake -S $PROJECT_DIR -B build
 cmake --build "$PROJECT_DIR/build"
@@ -89,76 +90,34 @@ The pass plugin is generated at:
 build/src/CallGraph/libCallGraph.so
 ```
 
-
-
 ## Run the test
 
 With the kernel build already prepared and `artefact/vmlinux.ll` available, run
 from the project root:
 
 ```bash
+llvm-dis artefact/vmlinux.bc -o artefact/vmlinux.ll
+
 ./run.sh
 ```
 
 The script builds the analysis plugin, generate the IR of each LKM in the
-`test/`  folder, links each LKM IR with the existing kernel IR, and runs `lkm-callgraph`. To run one test, use `./run.sh module-list`.
-
-## Run one test manually
-
-#### 1. Generate the kernel IR
-
-#TODO
-
-#### 2. Generate the LKM IR
+`test/`  folder, links each LKM IR with the existing kernel IR, and runs the LLVM with the resulting IR. To run one test following by the name of the LKM.
 
 ```bash
-make -C "$KERNEL_SRC"  \
-  ARCH=x86 LLVM=1 \
-  M="$LKM_DIR" \
-  CFLAGS_call_chain.o= \
-  KCFLAGS="-Xclang -disable-llvm-passes" \
-  module_list.ll
-
-mv "$LKM_DIR/module_list.ll" "$ARTEFACT"
-```
-
-
-#### 3. Combine the IR
-
-```bash
-cd "$ARTEFACT"
-
-llvm-dis "vmlinux.bc" -o "vmlinux.ll"
-
-llvm-link \
-  "module_list.ll" \
-  "vmlinux.ll" \
-  -o "merge.bc"
-```
-
-The `.bc` file contains LLVM IR in binary form.
-
-
-#### 4. Run the analysis
-
-```bash
-cd "$ARTEFACT"
-
-opt \
-  -load-pass-plugin="$PROJECT_DIR/build/src/CallGraph/libCallGraph.so" \
-  -passes=lkm-callgraph \
-  -disable-output \
-  -time-passes \
-  "$ARTEFACT/merge.bc"
+./run.sh module-list
 ```
 
 ## Inspect the results
 
-The pass writes these files in its working directory:
+The pass writes these files in a sub directory into artifact, for each LKM test:
 
    - `graph.text`:   Call relationships in `[caller]:[callee1],[callee2]` format.
 
- - `graph.dot` :  The call graph in Graphviz DOT format.
-  - `pointto.text`:   Pointer-analysis diagnostics, without reachability filtering.
+   - `graph.dot` :  The call graph in Graphviz DOT format.
+   - `pointto.text`:   Pointer-analysis diagnostics, without reachability
+   filtering.
+   - run.log
+   - status.text
 
 Reachable functions with no recorded callees appear as `[function]:`.

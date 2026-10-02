@@ -2,8 +2,16 @@
 #include <linux/module.h>
 #include <linux/printk.h>
 
+
+
+void foo(void)
+{
+
+}
+
 static int __init hello_lkm_init(void)
 {
+	foo();
 	pr_info("hello_lkm: Hello, world!\n");
 	return 0;
 }
@@ -18,3 +26,6 @@ module_exit(hello_lkm_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("Hello-world loadable kernel module");
+
+
+// CHECK-DAG:  hello_lkm_init->fr;
