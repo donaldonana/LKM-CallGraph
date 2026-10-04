@@ -1,8 +1,12 @@
 ## LKM CallGraph
 
-LKM CallGraph is a static analysis project designed to reconstruct call relationships within a Linux Kernel Module, starting from an entry point. The tool analyzes LLVM IR and builds a directed graph in which each node represents a function and each edge represents a possible call between functions.
+This project builds a call graph for a Linux Kernel Module, starting from a specified entry point. It analyzes LLVM IR to produce a directed graph in which each node represents a function and each edge represents a possible call.
 
-The project is inspired by [CallGraph](https://github.com/bernardnongpoh/CallGraph.git), but adds several specific features. It uses a more recent LLVM pass manager and focuses on pointer analysis to recover indirect calls and callback relationships. The goal is to provide a practical call graph for Linux Kernel Modules, helping developers understand how functions interact and identify the kernel functionality used by a module without executing it.
+Inspired by [CallGraph](https://github.com/bernardnongpoh/CallGraph), the tool uses LLVM’s new pass manager and focuses on pointer analysis to identify potential targets of indirect calls, including callbacks.
+
+The goal is to help developers understand function dependencies and identify the kernel functionality a module relies on, without executing it.
+
+
 
 <p align="center">
   <img src="images/graph.png" alt="Call graph visualization" style="width:500px;"/>
@@ -24,37 +28,42 @@ The project supports direct calls and aims to handle more challenging patterns s
 
 ## How its work ?
 
-The analysis targets a specific kernel version, configuration, and architecture. It runs without loading or executing the LKM
+The analysis targets a specific kernel version, configuration, and architecture. It runs without loading or executing the LKM.
 
 <p align="center">
   <img src="images/callgraph.png" alt="Call graph visualization" style="width:260px;"/>
 </p>
 
-### 1. Generate the LKM IR
- #ToDo -- i will explain it. First assume the linux kernel IR in artefact folder
+### 1.  Generate the kernel IR
 
-### 2. Generate the relevant kernel IR
- #ToDo -- i will explain it
+The first step is to generate LLVM IR for the Linux kernel. See the Linux kernel IR section in doc.md for detailed instructions.
+
+### 2. Generate the LKM IR
+Compile the LKM with LLVM through the kernel build tree, explicitly requesting .ll targets to emit LLVM IR. See the LKM IR section in doc.md for detailed instructions.
 
 ### 3. Combine the IR
-#ToDo -- i will explain it
+Use llvm-link to combine the LKM and kernel IR files into a single bitcode file, merge.bc. This allows to have a full call graph by analysising to follow calls from the module into kernel functions whose definitions are included in the combined IR.
 
-### 4. Build and filter the graph
-#ToDo-- i will explain it
+### 4. Build the call graph
+Run the lkm-callgraph LLVM pass on the combined bitcode using opt. Starting from the specified entry point, the pass identifies direct calls and uses pointer analysis to identify potential targets of indirect calls.
 
 ## Prerequisites
 
-The actual example uses:
+The actual test running need the following testbed:
 
 - Linux sources in the root of the project.
 
 - Installing LLVM and Clang **24.0 or newer**, including LLVM development files.
+
 - Installing CMake **4.3 or newer**, as required by the current CMake files.
+
 - An **x86-64** target platform.
+
 - Kernel build dependencies, including Make, a host C compiler, Flex, Bison, and ELF/OpenSSL development headers.
+
 - Graphviz, optionally, to render the graph.
 
-Check the tools available in your `PATH`:
+See doc.md for detailed installation instructions. Once the prerequisites are installed, check that the required tools are available in your PATH:
 
 ```bash
 clang --version
@@ -65,22 +74,22 @@ type -a clang opt llvm-link ld.lld
 ```
 
 
-## Build the plugin
+## Build the LLVM pass
 
-Clone the project if needed:
+Clone the project:
 
 ```bash
 git clone https://github.com/donaldonana/LKM-CallGraph.git
 cd LKM-CallGraph
 ```
 
-From the project root:
+From the project root run:
 
 ```bash
 PROJECT_DIR="$PWD"
 
-cmake -S $PROJECT_DIR -B build
-cmake --build "$PROJECT_DIR/build"
+cmake -S . -B build
+cmake --build build
 ```
 
 The pass plugin is generated at:
@@ -91,8 +100,8 @@ build/src/CallGraph/libCallGraph.so
 
 ## Run the test
 
-With the kernel build already prepared and `artefact/vmlinux.ll` available, run
-from the project root:
+To run the test, you can assume the existing Kernel Linux (V6.8.0) in the artefact folder, or you can build your own by following the leads in the doc.md at Linux kernel IR section.
+
 
 ```bash
 llvm-dis artefact/vmlinux.bc -o artefact/vmlinux.ll

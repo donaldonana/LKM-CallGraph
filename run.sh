@@ -83,9 +83,9 @@ IRlink()
     llvm-link "${inputs[@]}" "$KERNEL_IR" -o "$output/merge.bc"
 }
 
-# After running the plugin, t
-# check the generated graph agains the CHECK directives in the source files.
-Test() {
+# Check the directives inside each  source files.
+Test()
+{
     local dir=$1 output=$2 source
     local checked=0 failed=0
 

@@ -4,9 +4,8 @@
 
 
 
-void foo(void)
+static void foo(void)
 {
-
 }
 
 static int __init hello_lkm_init(void)
