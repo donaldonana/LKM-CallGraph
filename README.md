@@ -100,7 +100,11 @@ build/src/CallGraph/libCallGraph.so
 
 ## Run the test
 
-To run the test, you can assume the existing Kernel Linux (V6.8.0) in the artefact folder, or you can build your own by following the leads in the doc.md at Linux kernel IR section.
+The test folder at the project root contains sample  LKMs that you can use to test the tool by generating a call graph for each module. You can also add your own LKM to this folder. See doc.md for instructions on adding a test example.
+
+To run the tests, you can use the prebuilt Linux kernel IR (version 6.8.0) provided in the artefact folder, or generate your own by following the Linux kernel IR section in doc.md.
+
+Execute the run.sh shell script from the project root to run the tests and generate a call graph for each LKM in the test folder:
 
 
 ```bash
@@ -109,23 +113,24 @@ llvm-dis artefact/vmlinux.bc -o artefact/vmlinux.ll
 ./run.sh
 ```
 
-The script builds the analysis plugin, generate the IR of each LKM in the
-`test/`  folder, links each LKM IR with the existing kernel IR, and runs the LLVM with the resulting IR. To run one test following by the name of the LKM.
+The `run.sh` shell script generates LLVM IR for each LKM in the `test` folder, links each module’s IR with the kernel bitcode provided in the `artefact` folder, and runs the LLVM pass on the resulting bitcode.
+
+To run a single test, pass the LKM’s name as an argument:
 
 ```bash
 ./run.sh module-list
 ```
 
+
 ## Inspect the results
 
-The pass writes these files in a sub directory into artifact, for each LKM test:
+For each LKM test, the pass and test runner write the following files to a dedicated subdirectory under `artifact`:
 
-   - `graph.text`:   Call relationships in `[caller]:[callee1],[callee2]` format.
+- `graph.text`: Call relationships in `[caller]:[callee1],[callee2]` format.
 
-   - `graph.dot` :  The call graph in Graphviz DOT format.
-   - `pointto.text`:   Pointer-analysis diagnostics, without reachability
-   filtering.
-   - run.log
-   - status.text
+- `graph.dot`: The call graph in Graphviz DOT format.
+- `pointto.text`: Pointer-analysis diagnostics, without reachability filtering.
+- `run.log`: The test execution log.
+- `status.text`: The test result, indicating whether execution succeeded and whether the generated call graph contains the edges specified by the FileCheck checks.
 
 Reachable functions with no recorded callees appear as `[function]:`.
