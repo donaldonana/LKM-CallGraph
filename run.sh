@@ -14,16 +14,32 @@ die()
     exit 1
 }
 
+
 shopt -s nullglob
 tests=()
-if (( $# )); then
-    for name in "$@"; do
-        [[ $name != */* && $name != .* &&
-           -f "$PROJECT_DIR/test/$name/Makefile" ]] \
-            || die "Unknown test: $name"
-        tests+=("$PROJECT_DIR/test/$name")
-    done
-else
+skip_link=0
+for name in "$@"; do
+    case "$name" in
+        --skip-link)
+            skip_link=1
+            ;;
+        -h|--help)
+            printf 'Usage: %s [--skip-link] [test ...]\n' "$0"
+            printf '  --skip-link  Reuse each test\047s existing merge.bc (rerun without this flag after source changes).\n'
+            exit 0
+            ;;
+        -*)
+            die "Unknown option: $name"
+            ;;
+        *)
+            [[ $name != */* && $name != .* &&
+               -f "$PROJECT_DIR/test/$name/Makefile" ]] \
+                || die "Unknown test: $name"
+            tests+=("$PROJECT_DIR/test/$name")
+            ;;
+    esac
+done
+if (( ${#tests[@]} == 0 )); then
     for dir in "$PROJECT_DIR"/test/*/; do
         [[ -f "$dir/Makefile" ]] && tests+=("${dir%/}")
     done
@@ -50,7 +66,7 @@ if [[ -n ${KERNEL_BUILD:-} ]]; then
 fi
 
 
-# Generate the LKM IR. 
+# Generate the LKM IR.
 IRgenerate()
 {
     local dir=$1 output=$2 source stem
@@ -131,12 +147,22 @@ Test()
     fi
 }
 
+
 Run()
 {
     local dir=$1 output=$2
 
+    if (( skip_link )); then
+        [[ -s "$output/merge.bc" ]] \
+            || die "Missing or empty $output/merge.bc; rerun without --skip-link first"
+    fi
+
     IRgenerate "$dir" "$output"
-    IRlink "$dir" "$output"
+    if (( skip_link )); then
+        printf 'Skipping link; reusing %s/merge.bc\n' "$output"
+    else
+        IRlink "$dir" "$output"
+    fi
     Test "$dir" "$output"
 }
 
