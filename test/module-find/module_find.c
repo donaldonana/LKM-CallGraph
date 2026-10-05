@@ -12,10 +12,10 @@ static int __init module_find_init(void)
 
 	/* Analysis-only: __module_address is not exported to external LKMs. */
 	mod = __module_address(VADDR);
-	if (mod)
-		printk(KERN_ALERT "Module found: %s\n", mod->name);
-	else
-		printk(KERN_ALERT "Module not found for address: %lx\n", VADDR);
+	// if (mod)
+	// 	// printk(KERN_ALERT "Module found: %s\n", mod->name);
+	// else
+	// 	printk(KERN_ALERT "Module not found for address: %lx\n", VADDR);
 
 	return 0;
 }
@@ -23,7 +23,7 @@ static int __init module_find_init(void)
 static void __exit module_find_exit(void)
 {
 
-	printk(KERN_ALERT "Module find complete.\n");
+	// printk(KERN_ALERT "Module find complete.\n");
 }
 
 module_init(module_find_init);
