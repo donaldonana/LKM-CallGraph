@@ -108,14 +108,10 @@ Execute the run.sh shell script from the project root to run the tests and gener
 
 
 ```bash
-llvm-dis artefact/vmlinux.bc -o artefact/vmlinux.ll
-
 ./run.sh
 ```
 
-The `run.sh` shell script generates LLVM IR for each LKM in the `test` folder, links each module’s IR with the kernel bitcode provided in the `artefact` folder, and runs the LLVM pass on the resulting bitcode.
-
-To run a single test, pass the LKM’s name as an argument:
+The `run.sh`  generates LLVM IR for each LKM in the `test` folder, links each module’s IR with the kernel IR, and runs the LLVM pass on the resulting bitcode. To run a single test, pass the LKM’s name as an argument:
 
 ```bash
 ./run.sh module-list

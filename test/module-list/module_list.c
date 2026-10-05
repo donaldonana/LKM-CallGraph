@@ -9,12 +9,7 @@ static int __init module_list_init(void)
 {
 	struct list_head *head = (struct list_head *)MODULE_LIST_HEAD_VA;
 	struct module *mod;
-
-	/*
-	 * Lab example: head must be the modules list sentinel for this boot.
-	 * No other module may be loaded or unloaded during this traversal.
-	 * This plain iterator does not synchronize with module list updates.
-	 */
+ 
 	list_for_each_entry(mod, head, list)
 		printk(KERN_ALERT "%s\n", mod->name);
 

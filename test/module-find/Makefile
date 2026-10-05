@@ -5,7 +5,7 @@ MODULE_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
 PASS_PLUGIN := $(abspath $(MODULE_DIR)/../../build/src/CallGraph/libCallGraph.so)
 
-CFLAGS_module_list.o += -fpass-plugin=$(PASS_PLUGIN)
+CFLAGS_module_find.o += -fpass-plugin=$(PASS_PLUGIN)
 
 .PHONY: all clean
 

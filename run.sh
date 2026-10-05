@@ -35,6 +35,12 @@ KERNEL_IR=$(realpath "$KERNEL_IR")
 ARTEFACT=$(realpath -m "$ARTEFACT")
 
 mkdir -p "$ARTEFACT"
+
+# Prepare the default kernel IR once before running the tests.
+# if [[ "$KERNEL_IR" == "$ARTEFACT/vmlinux.ll" ]]; then
+#     llvm-dis "$ARTEFACT/vmlinux.bc" -o "$KERNEL_IR"
+# fi
+
 cmake -S "$PROJECT_DIR" -B "$PROJECT_DIR/build"
 cmake --build "$PROJECT_DIR/build" --target CallGraph
 
@@ -44,7 +50,7 @@ if [[ -n ${KERNEL_BUILD:-} ]]; then
 fi
 
 
-# Generate the LKM IR .
+# Generate the LKM IR. 
 IRgenerate()
 {
     local dir=$1 output=$2 source stem
