@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-KERNEL_SRC=${KERNEL_SRC:-"$PROJECT_DIR/linux"}
-ARTEFACT=${ARTEFACT:-"$PROJECT_DIR/artefact"}
-KERNEL_IR=${KERNEL_IR:-"$ARTEFACT/vmlinux.ll"}
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+SCRIPT_DIR="$(dirname -- "$SCRIPT_PATH")"
+PROJECT_DIR="$(cd -- "$SCRIPT_DIR" && pwd)"
+
+KERNEL_SRC="$PROJECT_DIR/linux"
+ARTEFACT="$PROJECT_DIR/artefact"
+KERNEL_IR="$ARTEFACT/vmlinux.ll"
 PLUGIN="$PROJECT_DIR/build/src/CallGraph/libCallGraph.so"
-FILECHECK=${FILECHECK:-FileCheck}
+
 
 die()
 {
@@ -39,16 +42,14 @@ for name in "$@"; do
             ;;
     esac
 done
+
+
 if (( ${#tests[@]} == 0 )); then
     for dir in "$PROJECT_DIR"/test/*/; do
         [[ -f "$dir/Makefile" ]] && tests+=("${dir%/}")
     done
 fi
-(( ${#tests[@]} )) || die 'No tests found'
 
-KERNEL_SRC=$(realpath "$KERNEL_SRC")
-KERNEL_IR=$(realpath "$KERNEL_IR")
-ARTEFACT=$(realpath -m "$ARTEFACT")
 
 mkdir -p "$ARTEFACT"
 
@@ -127,7 +128,7 @@ Test()
         checked=$((checked + 1))
         printf 'Checking %s\n' "$source"
 
-        if "$FILECHECK" "$source" --match-full-lines \
+        if  FileCheck "$source" --match-full-lines \
             --input-file="$output/graph.dot"; then
             printf 'FileCheck PASS: %s\n' "$source"
         else

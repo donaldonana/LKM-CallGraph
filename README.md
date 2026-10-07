@@ -123,11 +123,9 @@ The `run.sh`  generates LLVM IR for each LKM in the `test` folder, links each mo
 
 For each LKM test, the pass and test runner write the following files to a dedicated subdirectory under `artifact`:
 
-- `graph.text`: Call relationships in `[caller]:[callee1],[callee2]` format.
+- `graph.text`: Call relationships in `[caller]:[callee1],[callee2]` format. Reachable functions with no recorded callees appear as `[caller]:`.
 
 - `graph.dot`: The call graph in Graphviz DOT format.
 - `pointto.text`: Pointer-analysis diagnostics, without reachability filtering.
 - `run.log`: The test execution log.
 - `status.text`: The test result, indicating whether execution succeeded and whether the generated call graph contains the edges specified by the FileCheck checks.
-
-Reachable functions with no recorded callees appear as `[function]:`.
