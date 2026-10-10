@@ -28,103 +28,105 @@ struct CallGraphPass :  public PassInfoMixin<CallGraphPass> {
   Graph *callgraph=new Graph();
   PointerAnalysis *pointerAnalysis=new PointerAnalysis();
 
-
-
-
   PreservedAnalyses run(llvm::Module &M, ModuleAnalysisManager &AM) {
 
     auto t0 = std::chrono::steady_clock::now();
-  auto lap = [&](const char *what) {
-    auto t1 = std::chrono::steady_clock::now();
-    errs() << what << ": " << std::chrono::duration<double>(t1 - t0).count() << " s\n";
-    t0 = t1;
-  };
+    auto lap = [&](const char *what)
+    {
+      auto t1 = std::chrono::steady_clock::now();
+      errs() << what << ": " << std::chrono::duration<double>(t1 - t0).count() << " s\n";
+      t0 = t1;
+    };
 
-        for (Function &F : M) {
+    for (Function &F : M)
+    {
 
-            callgraph->addNode(&F);
+        callgraph->addNode(&F);
 
-            for (BasicBlock &BB : F) {
-                for (Instruction &I : BB) {
+        for (BasicBlock &BB : F)
+        {
+            for (Instruction &I : BB)
+            {
+                if (auto *storeInst =dyn_cast<StoreInst>(&I))
+                {
+                  Value *to = storeInst->getValueOperand()->stripPointerCasts();
+                  Value *from = storeInst->getPointerOperand()->stripPointerCasts();
 
-                    if (auto *storeInst =dyn_cast<StoreInst>(&I))
+                  // Add Points-To
+                  pointerAnalysis->pointsTo(from, to);
+                  // Add to Worklist
+                  pointerAnalysis->addToWorkList(&I);
+                  continue;
+                }
+
+                if (auto *loadInst =dyn_cast<LoadInst>(&I))
+                {
+                  Value *to = loadInst->getPointerOperand()->stripPointerCasts();
+                  Value *from = dyn_cast<Value>(loadInst);
+
+                  // Add Points-To
+                  pointerAnalysis->pointsTo(from, to);
+                  // Add to Worklist
+                  pointerAnalysis->addToWorkList(&I);
+                  continue;
+                }
+
+                else if (auto *callBase = dyn_cast<CallBase>(&I))
+                {
+                  if (!callBase) {
+                    // Maybe Indirect Call
+                    pointerAnalysis->addToWorkList(&I);
+                    continue;
+                  }
+
+                  // errs()<<*callInst;
+                  if (callBase->isIndirectCall()) {
+
+                    pointerAnalysis->addToWorkList(&I);
+                    continue;
+                  }
+                  // Direct Call
+                  Function *calleeFunc = callBase->getCalledFunction();
+                  if (!calleeFunc || calleeFunc->isIntrinsic()) continue;
+
+                  callgraph->addNode(calleeFunc);
+                  callgraph->addEdge(&F, calleeFunc);
+
+                  // Connect formal pointer parameters to actual call arguments.
+                  if (!calleeFunc->isDeclaration())
+                  {
+                    unsigned argIndex = 0;
+                    for (Argument &parameter : calleeFunc->args())
                     {
-                      Value *to = storeInst->getValueOperand()->stripPointerCasts();
-                      Value *from = storeInst->getPointerOperand()->stripPointerCasts();
+                      Value *argument = callBase->getArgOperand(argIndex++);
 
-                      // Add Points-To
-                      pointerAnalysis->pointsTo(from, to);
-                      // Add to Worklist
-                      pointerAnalysis->addToWorkList(&I);
-                      continue;
-                    }
-
-                    if (auto *loadInst =dyn_cast<LoadInst>(&I))
-                    {
-                      Value *to = loadInst->getPointerOperand()->stripPointerCasts();
-                      Value *from = dyn_cast<Value>(loadInst);
-
-                      // Add Points-To
-                      pointerAnalysis->pointsTo(from, to);
-                      // Add to Worklist
-                      pointerAnalysis->addToWorkList(&I);
-                      continue;
-                    }
-
-                    else if (auto *callBase = dyn_cast<CallBase>(&I))
-                    {
-                      if (!callBase) {
-                        // Maybe Indirect Call
-                        pointerAnalysis->addToWorkList(&I);
+                      if (!parameter.getType()->isPointerTy() ||
+                          !argument->getType()->isPointerTy())
                         continue;
-                      }
 
-                      // errs()<<*callInst;
-                      if (callBase->isIndirectCall()) {
-
-                        pointerAnalysis->addToWorkList(&I);
-                        continue;
-                      }
-                      // Direct Call
-                      Function *calleeFunc = callBase->getCalledFunction();
-                      if (!calleeFunc || calleeFunc->isIntrinsic()) continue;
-
-                      callgraph->addNode(calleeFunc);
-                      callgraph->addEdge(&F, calleeFunc);
-
-                      // Connect formal pointer parameters to actual call arguments.
-                      if (!calleeFunc->isDeclaration())
-                      {
-                        unsigned argIndex = 0;
-                        for (Argument &parameter : calleeFunc->args())
-                        {
-                          Value *argument = callBase->getArgOperand(argIndex++);
-
-                          if (!parameter.getType()->isPointerTy() ||
-                              !argument->getType()->isPointerTy())
-                            continue;
-
-                          pointerAnalysis->pointsTo(
-                              &parameter, argument->stripPointerCasts());
-                        }
-                      }
-
+                      pointerAnalysis->pointsTo(
+                          &parameter, argument->stripPointerCasts());
                     }
+                  }
 
                 }
+
             }
         }
-        lap("collect");
-
+    }
+    lap("collect");
     // pointerAnalysis->printPointToSet();
     pointerAnalysis->processWorkList(callgraph);
     lap("solve");
     std::vector<Function *> roots;
 
-    if (!FullGraph) {
+    if (!FullGraph)
+    {
       // module_init/module_exit typically produce aliases to local functions.
-      for (const char *name : {"init_module", "cleanup_module"}) {
-        if (GlobalValue *entry = M.getNamedValue(name)) {
+      for (const char *name : {"init_module", "cleanup_module"})
+      {
+        if (GlobalValue *entry = M.getNamedValue(name))
+        {
           if (auto *alias = dyn_cast<GlobalAlias>(entry))
             entry = alias->getAliaseeObject();
           if (auto *function = dyn_cast_or_null<Function>(entry))

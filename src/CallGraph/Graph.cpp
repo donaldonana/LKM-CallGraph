@@ -4,6 +4,7 @@
 */
 
 #include "Graph.h"
+#include "FunctionClassifier.h"
 
 void Graph::addEdge(Value *src, Value *dest) { adjMap[src].insert(dest); }
 
@@ -41,6 +42,44 @@ void Graph::printGraph(const vector<llvm::Function *> &roots) {
   graphDot.open(graphFileNameDot);
   graphDot << "digraph G {"
            << "\n";
+
+  /*
+   * Direct C1/C2 function classification is performed here.
+   *
+   */
+  FunctionClassifier classifier;
+  std::ofstream classifications("classification.text");
+
+  classifications << "# Direct classification; C1: parameter use; C2: global variable use.\n";
+
+  map<std::string, Function *> selected;
+  for (const auto &entry : idToFuncMap)
+    if (roots.empty() || reachable.count(entry.first))
+      selected[entry.second->getName().str()] = entry.second;
+
+  for (const auto &entry : selected)
+  {
+    const auto result = classifier.classify(*entry.second);
+
+    std::string label;
+    for (const auto &classification : result.labels) {
+      if (!label.empty()) label += ", ";
+      label += classification;
+    }
+    if (!result.hasDefinition) label = "unknown (no definition)";
+    else if (label.empty()) label = "unclassified (no C1/C2 evidence)";
+
+    classifications << "[" << entry.first << "]: " << label;
+
+    for (const auto &reason : result.reasons)
+      classifications << "; " << reason;
+      
+    classifications << "\n";
+    graphDot << "\"" << entry.first << "\" [classification=\"" << label << "\"";
+    if (!result.labels.empty())
+      graphDot << ", xlabel=\"" << label << "\"";
+    graphDot << "];\n";
+  }
 
   // Keep reachable leaves and entry points even if they have no calls.
   for (Value *node : reachable) {
