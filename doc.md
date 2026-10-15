@@ -1,7 +1,4 @@
 
-
-
-
 ## Testbed
 
 - LLVM/Clang

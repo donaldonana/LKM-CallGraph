@@ -117,8 +117,6 @@ The `run.sh`  generates LLVM IR for each LKM in the `test` folder, links each mo
 ./run.sh module-list
 ```
 
-
-
 ## Inspect the results
 
 For each LKM test, the pass and test runner write the following files to a dedicated subdirectory under `artifact`:

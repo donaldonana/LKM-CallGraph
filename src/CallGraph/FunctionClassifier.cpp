@@ -53,18 +53,15 @@ FunctionClassifier::classify(const Function &function) const
    * alors l'analyse n'est pas possible
    */
   if (function.isDeclaration()) return result;
-
   result.hasDefinition = true;
-  bool usesParameter = false;
-  bool usesGlobal    = false;
 
+  bool usesParameter   = false;
+  bool usesGlobal      = false;
 
   for (const Instruction &instruction : instructions(function))
   {
-   /*
-    * Skip debug instrction
-    */
-    if (isa<DbgInfoIntrinsic>(instruction)) continue;
+
+    // if (isa<DbgInfoIntrinsic>(instruction)) continue;
 
     for (const Use &operand : instruction.operands())
     {
@@ -77,6 +74,7 @@ FunctionClassifier::classify(const Function &function) const
       if (!usesGlobal && referencesGlobalVariable(operand.get()))
         usesGlobal = true;
     }
+
   }
 
   if (usesParameter)
@@ -89,5 +87,11 @@ FunctionClassifier::classify(const Function &function) const
     result.labels.push_back("C2");
     result.reasons.push_back("uses a global variable in its body");
   }
+  if (!usesParameter && !usesGlobal)
+  {
+    result.labels.push_back("C0");
+    result.reasons.push_back("");
+  }
+
   return result;
 }
